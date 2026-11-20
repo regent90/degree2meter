@@ -1,0 +1,229 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>度與公尺 — 經緯度換算工具</title>
+  <meta name="description" content="經緯度一度是多少公尺、十進位與二進位座標展點差異、WGS84 / TWD97 / TWD67 互轉的純前端小工具。">
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+<header class="top">
+  <div class="wrap top-inner">
+    <a class="brand" href="#">度<span>↔</span>公尺</a>
+    <nav>
+      <a href="#sec-degree">一度差多少</a>
+      <a href="#sec-binary">十進位 vs 二進位</a>
+      <a href="#sec-tm">座標轉換</a>
+    </nav>
+  </div>
+</header>
+
+<main class="wrap">
+
+  <section class="hero">
+    <h1>經緯度、公尺與座標系統換算</h1>
+    <p>純前端運算，資料不會離開你的瀏覽器。三個工具：量一度有多長、看二進位儲存會讓點位偏多少、在 WGS84 / TWD97 / TWD67 之間互轉。</p>
+  </section>
+
+  <!-- ============================ 1. 一度差多少 ============================ -->
+  <section id="sec-degree" class="card">
+    <h2><span class="num">1</span>經緯度差一度，等於多少公尺？</h2>
+    <p class="lead">地球是扁橢球，緯度方向每度長度略有變化；經度方向則隨緯度增加而縮短（約等於 cos φ）。經度本身不影響長度，只要輸入緯度即可。使用 WGS84 橢球。</p>
+
+    <div class="controls">
+      <label class="field grow">
+        <span>緯度 φ（°）</span>
+        <input id="d-lat" type="number" step="any" min="-90" max="90" value="25">
+      </label>
+      <label class="field">
+        <span>度數差 Δ（°）</span>
+        <input id="d-delta" type="number" step="any" min="0" value="1">
+      </label>
+    </div>
+    <input id="d-slider" class="slider" type="range" min="-90" max="90" step="0.5" value="25" aria-label="緯度滑桿">
+
+    <div class="tiles" id="d-tiles"></div>
+    <p class="note" id="d-note"></p>
+
+    <div class="grid2">
+      <div>
+        <h3>小數位數與距離</h3>
+        <p class="hint">座標小數點後每多一位，在此緯度差多少？</p>
+        <div class="tablewrap"><table id="d-decimals"></table></div>
+      </div>
+      <div>
+        <h3>各緯度一覽</h3>
+        <p class="hint">灰底列為目前輸入的緯度附近。</p>
+        <div class="tablewrap short"><table id="d-lats"></table></div>
+      </div>
+    </div>
+
+    <h3>1° 的長度隨緯度變化</h3>
+    <div id="d-chart" class="chart" role="img" aria-label="每度長度與緯度關係圖"></div>
+
+    <h3>反過來：公尺 → 度</h3>
+    <div class="controls">
+      <label class="field grow">
+        <span>距離（公尺）</span>
+        <input id="r-meters" type="number" step="any" value="100">
+      </label>
+      <div class="inline-result" id="r-out"></div>
+    </div>
+  </section>
+
+  <!-- ============================ 2. 十進位 vs 二進位 ============================ -->
+  <section id="sec-binary" class="card">
+    <h2><span class="num">2</span>十進位座標 vs. 二進位儲存後的展點差異</h2>
+    <p class="lead">電腦以二進位儲存小數，像 <code>0.1</code> 這種十進位小數多半無法精確表示。座標存成 32 位元浮點數（float32）時，台灣一帶的點位可能偏移數十公分到一公尺；float64 則小到幾乎看不出來。下面可以親眼看。</p>
+
+    <div class="controls stack">
+      <label class="field full">
+        <span>座標（每行一點：<code>緯度, 經度 [名稱]</code>）</span>
+        <textarea id="b-points" rows="6" spellcheck="false">25.0339639, 121.5644722 台北101
+25.0477, 121.5170 台北車站
+24.8016, 120.9717 新竹車站
+24.1369, 120.6850 台中車站
+22.6392, 120.3020 高雄車站
+23.9926, 121.6013 花蓮車站</textarea>
+      </label>
+    </div>
+
+    <div class="controls">
+      <fieldset class="seg" id="b-format">
+        <legend>二進位格式</legend>
+        <label><input type="radio" name="fmt" value="f32" checked><span>float32</span></label>
+        <label><input type="radio" name="fmt" value="f64"><span>float64</span></label>
+        <label><input type="radio" name="fmt" value="fixed"><span>二進位定點</span></label>
+      </fieldset>
+      <label class="field small fixed-only">
+        <span>小數位元數 k</span>
+        <input id="b-bits" type="number" min="1" max="40" step="1" value="16">
+      </label>
+      <label class="field small fixed-only">
+        <span>進位方式</span>
+        <select id="b-round">
+          <option value="nearest">四捨五入</option>
+          <option value="trunc">無條件捨去</option>
+        </select>
+      </label>
+      <label class="field grow">
+        <span>檢視的點</span>
+        <select id="b-which"></select>
+      </label>
+    </div>
+
+    <div id="b-errors" class="error-box" hidden></div>
+
+    <h3>選定點：格式比較</h3>
+    <div class="tablewrap"><table id="b-compare"></table></div>
+
+    <h3>選定點：位元與儲存值</h3>
+    <div id="b-bits-view" class="bitsview"></div>
+
+    <div class="grid2 canvases">
+      <figure>
+        <figcaption>
+          <strong>放大看：點位被「吸」到格點上</strong>
+          <span class="hint">每條線是該格式在此處「能表示的座標」。十進位原點只能落在最近的交點（或被捨去的交點）。</span>
+        </figcaption>
+        <canvas id="b-zoom" class="cv"></canvas>
+      </figure>
+      <figure>
+        <figcaption>
+          <strong>多點展點：誤差放大後</strong>
+          <span class="hint">空心圈 = 十進位原位置；實心點 = 二進位儲存後位置（偏移量依下方倍率放大）。</span>
+        </figcaption>
+        <canvas id="b-overview" class="cv"></canvas>
+        <div class="mag">
+          <label for="b-mag">誤差放大倍率</label>
+          <input id="b-mag" type="range" min="0" max="14" step="1" value="0">
+          <output id="b-mag-out"></output>
+          <button type="button" id="b-mag-auto" class="btn ghost">自動</button>
+        </div>
+      </figure>
+    </div>
+
+    <h3>所有點的位置誤差（目前格式）</h3>
+    <div class="tablewrap"><table id="b-table"></table></div>
+  </section>
+
+  <!-- ============================ 3. 座標轉換 ============================ -->
+  <section id="sec-tm" class="card">
+    <h2><span class="num">3</span>WGS84 / TWD97 / TWD67 座標轉換</h2>
+    <p class="lead">經緯度 ⇄ 橫麥卡托二度分帶（TM2）平面座標，支援 WGS84 ⇄ TWD97、WGS84 ⇄ TWD67、TWD97 ⇄ TWD67 六個方向。</p>
+
+    <div class="controls">
+      <label class="field grow">
+        <span>從</span>
+        <select id="t-from">
+          <option value="WGS84">WGS84 經緯度</option>
+          <option value="TWD97">TWD97 TM2（E, N）</option>
+          <option value="TWD67">TWD67 TM2（E, N）</option>
+        </select>
+      </label>
+      <button type="button" id="t-swap" class="btn swap" title="對調來源與目標，並把結果帶回輸入" aria-label="對調">⇄</button>
+      <label class="field grow">
+        <span>到</span>
+        <select id="t-to">
+          <option value="WGS84">WGS84 經緯度</option>
+          <option value="TWD97" selected>TWD97 TM2（E, N）</option>
+          <option value="TWD67">TWD67 TM2（E, N）</option>
+        </select>
+      </label>
+      <label class="field">
+        <span>分帶中央經線</span>
+        <select id="t-zone">
+          <option value="auto">自動</option>
+          <option value="121">121°（臺灣本島）</option>
+          <option value="119">119°（澎湖、金門、馬祖）</option>
+        </select>
+      </label>
+    </div>
+
+    <div class="controls">
+      <label class="field grow"><span id="t-l1">緯度（°）</span><input id="t-v1" type="text" inputmode="decimal" value="25.0339639"></label>
+      <label class="field grow"><span id="t-l2">經度（°）</span><input id="t-v2" type="text" inputmode="decimal" value="121.5644722"></label>
+    </div>
+
+    <div id="t-result" class="result" aria-live="polite"></div>
+
+    <details class="batch">
+      <summary>批次轉換（貼上多行座標）</summary>
+      <p class="hint">每行兩個數字（逗號、空白或 Tab 分隔），依上方「從 → 到」與分帶設定轉換。</p>
+      <div class="grid2">
+        <label class="field full"><span>輸入</span><textarea id="t-batch-in" rows="6" spellcheck="false">25.0339639, 121.5644722
+25.0477, 121.5170
+23.5, 119.57</textarea></label>
+        <label class="field full"><span>輸出（輸入1, 輸入2, 結果1, 結果2, 分帶）</span><textarea id="t-batch-out" rows="6" readonly spellcheck="false"></textarea></label>
+      </div>
+      <div class="row-actions">
+        <button type="button" class="btn" id="t-batch-run">轉換</button>
+        <button type="button" class="btn ghost" id="t-batch-copy">複製結果</button>
+      </div>
+    </details>
+
+    <div class="notes">
+      <h3>說明與精度</h3>
+      <ul>
+        <li><strong>TWD97 ⇄ 經緯度</strong>：TM2 投影，GRS80 橢球，中央經線 121°（或 119°），尺度因子 0.9999，東向偏移 250,000 m。以 Krüger 級數計算，數學誤差在奈米等級。</li>
+        <li><strong>WGS84 ≈ TWD97 經緯度</strong>：TWD97 採 GRS80 / ITRF94，與 WGS84 差異在公分到公寸量級，一般實務直接視為相同。</li>
+        <li><strong>TWD97 ⇄ TWD67</strong>：採內政部公告的六參數轉換式
+          （ΔE = 807.8 m、ΔN = −248.6 m、A = 0.00001549、B = 0.000006521）。這是區域性迴歸模型，精度約公尺等級，不適用於精密測量。
+          官方式在兩個方向各自給定，來回換算會有約 1–2 公分的殘差，屬正常現象。</li>
+        <li>TWD67 官方轉換式適用於臺灣本島與澎湖；金門、馬祖沒有 TWD67 官方式，請勿把結果當成正式成果。</li>
+      </ul>
+    </div>
+  </section>
+
+</main>
+
+<footer class="wrap foot">
+  <p>純靜態網站，可直接部署在 GitHub Pages。數學核心見 <code>js/geo.js</code>，並附 <code>test/geo.test.js</code> 以 pyproj 為基準的驗證。</p>
+</footer>
+
+<script src="js/geo.js"></script>
+<script src="js/app.js"></script>
+</body>
+</html>
