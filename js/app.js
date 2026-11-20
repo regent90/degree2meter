@@ -10,7 +10,8 @@
     v.toLocaleString('en-US', { minimumFractionDigits: d, maximumFractionDigits: d });
   const esc = (s) =>
     String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
-  const css = (name) => getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+  let cssEl = document.documentElement;
+  const css = (name) => getComputedStyle(cssEl).getPropertyValue(name).trim();
   const sig = (v, n) => String(Number(v.toPrecision(n)));
   const SUP = '⁰¹²³⁴⁵⁶⁷⁸⁹';
   const sup = (n) => String(n).split('').map((c) => SUP[+c]).join('');
@@ -55,31 +56,28 @@
     const dn = delta === 1 ? '1' : sig(delta, 6);
 
     $('#d-tiles').innerHTML = `
-      <div class="tile lat">
-        <div class="label">緯度方向（南北）差 ${dn}°</div>
-        <div class="big">${nf(len.lat, 2)}<small>m</small></div>
-        <div class="sub">≈ <b>${nf(len.lat / 1000, 4)}</b> km</div>
-        <div class="sub">1′ ≈ <b>${nf(one.lat / 60, 2)}</b> m　1″ ≈ <b>${nf(one.lat / 3600, 3)}</b> m</div>
+      <div class="ro ro--lat">
+        <dt>南北方向<small>緯度差 ${dn}°</small></dt>
+        <dd class="num">${nf(len.lat, 2)}<small>公尺</small></dd>
+        <dd class="side">約 <b>${nf(len.lat / 1000, 3)}</b> 公里<br>1′ 約 <b>${nf(one.lat / 60, 2)}</b> 公尺，1″ 約 <b>${nf(one.lat / 3600, 3)}</b> 公尺</dd>
       </div>
-      <div class="tile lon">
-        <div class="label">經度方向（東西）差 ${dn}°</div>
-        <div class="big">${nf(len.lon, 2)}<small>m</small></div>
-        <div class="sub">≈ <b>${nf(len.lon / 1000, 4)}</b> km</div>
-        <div class="sub">1′ ≈ <b>${nf(one.lon / 60, 2)}</b> m　1″ ≈ <b>${nf(one.lon / 3600, 3)}</b> m</div>
+      <div class="ro ro--lon">
+        <dt>東西方向<small>經度差 ${dn}°</small></dt>
+        <dd class="num">${nf(len.lon, 2)}<small>公尺</small></dd>
+        <dd class="side">約 <b>${nf(len.lon / 1000, 3)}</b> 公里<br>1′ 約 <b>${nf(one.lon / 60, 2)}</b> 公尺，1″ 約 <b>${nf(one.lon / 3600, 3)}</b> 公尺</dd>
       </div>
-      <div class="tile">
-        <div class="label">橢球曲率半徑</div>
-        <div class="big">${nf(one.lon / one.lat, 4)}<small>經度長 ÷ 緯度長</small></div>
-        <div class="sub">M（子午圈）= <b>${nf(M / 1000, 3)}</b> km</div>
-        <div class="sub">N（卯酉圈）= <b>${nf(N / 1000, 3)}</b> km，cos φ = <b>${nf(Math.cos(lat * RAD), 5)}</b></div>
+      <div class="ro ro--rad">
+        <dt>曲率半徑</dt>
+        <dd class="num">M ${nf(M / 1000, 3)} km，N ${nf(N / 1000, 3)} km</dd>
+        <dd class="side">cos φ = <b>${nf(Math.cos(lat * RAD), 5)}</b>，東西 ÷ 南北 = <b>${nf(one.lon / one.lat, 4)}</b></dd>
       </div>`;
 
     // 單側弧長 vs 局部尺度
     const lat2 = lat + delta <= 90 ? lat + delta : lat - delta;
-    let note = '以上為該緯度的「局部尺度」（M·π/180、N·cos φ·π/180 乘上度數）。';
+    let note = '以上是該緯度的局部尺度：M·π/180 與 N·cos φ·π/180 乘上度數。';
     if (lat2 >= -90 && lat2 <= 90 && delta > 0) {
       const arc = G.meridianArc(lat, lat2);
-      note += ` 若改量 φ 到 ${sig(lat2, 8)}° 的實際子午線弧長為 ${nf(arc, 2)} m（與局部尺度相差 ${nf(Math.abs(arc - len.lat), 2)} m）。`;
+      note += ` 如果改量 φ 到 ${sig(lat2, 8)}° 的子午線弧長，實際是 ${nf(arc, 2)} m，和局部尺度差 ${nf(Math.abs(arc - len.lat), 2)} m。`;
     }
     $('#d-note').textContent = note;
 
@@ -104,6 +102,7 @@
     $('#d-lats').innerHTML = '<thead><tr><th>緯度</th><th>緯度 1°（m）</th><th>經度 1°（m）</th></tr></thead><tbody>' + r2 + '</tbody>';
 
     renderChart(Math.abs(lat));
+    if (heroUpdate) heroUpdate(lat);
 
     // 反向
     const m = parseFloat($('#r-meters').value);
@@ -143,8 +142,8 @@
         <line class="cur" x1="${x(curLat)}" x2="${x(curLat)}" y1="${T}" y2="${H - B}"/>
         <circle class="dot-lat" cx="${x(curLat)}" cy="${y(cur.lat / 1000)}" r="5"/>
         <circle class="dot-lon" cx="${x(curLat)}" cy="${y(cur.lon / 1000)}" r="5"/>
-        <text class="legend-t a" x="${x(89)}" y="${y(102)}" text-anchor="end">緯度方向 1°（約 110.6 → 111.7 km）</text>
-        <text class="legend-t b" x="${x(3)}" y="${y(34)}">經度方向 1°（111.3 → 0 km）</text>
+        <text class="legend-t a" x="${x(89)}" y="${y(102)}" text-anchor="end">南北方向 1°（約 110.6 到 111.7 km）</text>
+        <text class="legend-t b" x="${x(3)}" y="${y(34)}">東西方向 1°（111.3 到 0 km）</text>
       </svg>`;
   }
 
@@ -282,6 +281,7 @@
   /* ---------------- 畫布 ---------------- */
 
   function prep(canvas) {
+    cssEl = canvas;
     const dpr = window.devicePixelRatio || 1;
     const rect = canvas.getBoundingClientRect();
     const w = Math.max(220, Math.round(rect.width));
@@ -311,9 +311,9 @@
       ctx.fillText(it.text, x + 22, yy);
     });
   }
-  const iconRing = (ctx, x, y) => { ctx.strokeStyle = css('--accent2'); ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(x, y, 5.5, 0, 7); ctx.stroke(); };
-  const iconDot = (ctx, x, y) => { ctx.fillStyle = css('--accent'); ctx.beginPath(); ctx.arc(x, y, 4.5, 0, 7); ctx.fill(); };
-  const iconBox = (ctx, x, y) => { ctx.fillStyle = css('--accent'); ctx.globalAlpha = 0.16; ctx.fillRect(x - 6, y - 6, 12, 12); ctx.globalAlpha = 1; ctx.strokeStyle = css('--accent'); ctx.lineWidth = 1; ctx.strokeRect(x - 6, y - 6, 12, 12); };
+  const iconRing = (ctx, x, y) => { ctx.strokeStyle = css('--mark'); ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(x, y, 5.5, 0, 7); ctx.stroke(); };
+  const iconDot = (ctx, x, y) => { ctx.fillStyle = css('--bin'); ctx.beginPath(); ctx.arc(x, y, 4.5, 0, 7); ctx.fill(); };
+  const iconBox = (ctx, x, y) => { ctx.fillStyle = css('--bin'); ctx.globalAlpha = 0.16; ctx.fillRect(x - 6, y - 6, 12, 12); ctx.globalAlpha = 1; ctx.strokeStyle = css('--bin'); ctx.lineWidth = 1; ctx.strokeRect(x - 6, y - 6, 12, 12); };
 
   function drawScaleBar(ctx, w, h, mPerPx, pad) {
     const len = niceLen(mPerPx * w * 0.22);
@@ -346,10 +346,10 @@
 
     // 捕捉區（落在此區的十進位值都會變成同一個二進位點）
     const [xl, xh] = cellRange(p.lon, stLon, B.fmt), [yl, yh] = cellRange(p.lat, stLat, B.fmt);
-    ctx.fillStyle = css('--accent'); ctx.globalAlpha = 0.14;
+    ctx.fillStyle = css('--bin'); ctx.globalAlpha = 0.14;
     ctx.fillRect(X(e.east + xl * mLon), Y(e.north + yh * mLat), (xh - xl) * mLon * k, (yh - yl) * mLat * k);
     ctx.globalAlpha = 1;
-    ctx.strokeStyle = css('--accent'); ctx.lineWidth = 1;
+    ctx.strokeStyle = css('--bin'); ctx.lineWidth = 1;
     ctx.strokeRect(X(e.east + xl * mLon), Y(e.north + yh * mLat), (xh - xl) * mLon * k, (yh - yl) * mLat * k);
 
     // 格線
@@ -375,9 +375,9 @@
     // 連線、十進位原點、儲存點
     ctx.strokeStyle = css('--ink'); ctx.lineWidth = 1.5; ctx.setLineDash([4, 3]);
     ctx.beginPath(); ctx.moveTo(X(0), Y(0)); ctx.lineTo(X(e.east), Y(e.north)); ctx.stroke(); ctx.setLineDash([]);
-    ctx.fillStyle = css('--accent'); ctx.beginPath(); ctx.arc(X(e.east), Y(e.north), 6, 0, 7); ctx.fill();
-    ctx.strokeStyle = css('--card'); ctx.lineWidth = 2; ctx.stroke();
-    ctx.strokeStyle = css('--accent2'); ctx.lineWidth = 2.5;
+    ctx.fillStyle = css('--bin'); ctx.beginPath(); ctx.arc(X(e.east), Y(e.north), 6, 0, 7); ctx.fill();
+    ctx.strokeStyle = css('--paper'); ctx.lineWidth = 2; ctx.stroke();
+    ctx.strokeStyle = css('--mark'); ctx.lineWidth = 2.5;
     ctx.beginPath(); ctx.arc(X(0), Y(0), 8, 0, 7); ctx.stroke();
     ctx.beginPath(); ctx.moveTo(X(0) - 12, Y(0)); ctx.lineTo(X(0) + 12, Y(0)); ctx.moveTo(X(0), Y(0) - 12); ctx.lineTo(X(0), Y(0) + 12); ctx.stroke();
 
@@ -445,19 +445,25 @@
     }
 
     const labelOn = g.length <= 14;
+    const placed = [];
     g.forEach((q, i) => {
       const sel = i === B.sel;
       const bx = q.x + q.e.east * f, by = q.y + q.e.north * f;
       ctx.strokeStyle = css('--ink'); ctx.lineWidth = 1.2;
       ctx.beginPath(); ctx.moveTo(X(q.x), Y(q.y)); ctx.lineTo(X(bx), Y(by)); ctx.stroke();
-      ctx.fillStyle = css('--accent'); ctx.beginPath(); ctx.arc(X(bx), Y(by), sel ? 5.5 : 4, 0, 7); ctx.fill();
-      ctx.strokeStyle = css('--accent2'); ctx.lineWidth = sel ? 3 : 2;
+      ctx.fillStyle = css('--bin'); ctx.beginPath(); ctx.arc(X(bx), Y(by), sel ? 5.5 : 4, 0, 7); ctx.fill();
+      ctx.strokeStyle = css('--mark'); ctx.lineWidth = sel ? 3 : 2;
       ctx.beginPath(); ctx.arc(X(q.x), Y(q.y), sel ? 8 : 6.5, 0, 7); ctx.stroke();
       if (labelOn) {
         ctx.fillStyle = css('--ink'); ctx.font = (sel ? '600 ' : '') + '12px system-ui, sans-serif';
         ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
         const name = B.pts[i].label || String(i + 1);
-        ctx.fillText(name, X(q.x) + 11, Y(q.y) - 11);
+        const tw = ctx.measureText(name).width;
+        let lx = X(q.x) + 11, ly = Y(q.y) - 11;
+        // 與已畫的標籤重疊時，往下挪一行
+        for (let tries = 0; tries < 6 && placed.some((r) => lx < r.x + r.w && lx + tw > r.x && Math.abs(ly - r.y) < 14); tries++) ly += 14;
+        placed.push({ x: lx, y: ly, w: tw });
+        ctx.fillText(name, lx, ly);
       }
     });
 
@@ -509,10 +515,11 @@
       ? [['緯度', r.v1.toFixed(9) + '°', G.toDMS(r.v1, true), r.v1.toFixed(9)], ['經度', r.v2.toFixed(9) + '°', G.toDMS(r.v2, false), r.v2.toFixed(9)]]
       : [['E 東距', r.v1.toFixed(3) + ' m', '', r.v1.toFixed(3)], ['N 北距', r.v2.toFixed(3) + ' m', '', r.v2.toFixed(3)]];
     const involvesTM = from !== 'WGS84' || to !== 'WGS84';
-    let meta = `${SYSNAME[from]} → ${SYSNAME[to]}`;
-    if (involvesTM) meta += `　｜　分帶中央經線 ${r.zone}°${zone === 'auto' ? '（自動）' : ''}`;
-    if (from === to) meta += '　｜　來源與目標相同';
-    if (from === 'TWD67' || to === 'TWD67') meta += '　｜　TWD67 為官方迴歸式，精度約公尺等級';
+    const bits = [`${SYSNAME[from]} 換成 ${SYSNAME[to]}。`];
+    if (involvesTM) bits.push(`分帶中央經線 ${r.zone}°${zone === 'auto' ? '，由經度自動判斷' : ''}。`);
+    if (from === to) bits.push('來源與目標相同。');
+    if (from === 'TWD67' || to === 'TWD67') bits.push('TWD67 用官方迴歸式，精度約公尺等級。');
+    const meta = bits.join('');
     box.innerHTML =
       lines.map((l) => `<div class="rline"><span class="rl">${l[0]}</span><span class="rv">${l[1]}</span>${l[2] ? `<span class="rsub">${l[2]}</span>` : ''}<button type="button" class="copy" data-copy="${l[3]}">複製</button></div>`).join('') +
       `<div class="rline"><span class="rl">合併</span><span class="rsub">${lines[0][3]}, ${lines[1][3]}</span><button type="button" class="copy" data-copy="${lines[0][3]}, ${lines[1][3]}">複製</button></div>` +
@@ -555,6 +562,147 @@
     $('#t-batch-out').value = out.join('\n');
   }
 
+
+  /* ============================== 英雄：正弦投影經緯網格 ============================== */
+
+  let heroUpdate = null;
+
+  function initHero() {
+    const NS = 'http://www.w3.org/2000/svg';
+    const map = $('#hf-map'), cell = $('#hf-cell'), range = $('#h-lat'), outEl = $('#h-out');
+    if (!map || !cell || !range) return;
+    map.classList.add('hf');
+    cell.classList.add('hf');
+
+    /* 正弦投影：x = 相對經度 × cos φ，y = 緯度；兩個方向的比例都是真的 */
+    const k = 5.6, LM = 22, cx = 168, y0 = 540;
+    const X = (l, p) => cx + l * Math.cos(p * RAD) * k;
+    const Y = (p) => y0 - p * k;
+    const el = (tag, attrs, parent) => {
+      const e = document.createElementNS(NS, tag);
+      for (const a in attrs) e.setAttribute(a, attrs[a]);
+      (parent || map).appendChild(e);
+      return e;
+    };
+    let idx = 0;
+    const line = (d, cls) => el('path', { d, class: cls + ' draw', pathLength: 1, style: '--i:' + idx++ });
+
+    // 平行圈（每 5°，10° 加粗）
+    for (let p = 0; p <= 90; p += 5) {
+      const major = p % 10 === 0;
+      line(`M${X(-LM, p).toFixed(1)},${Y(p).toFixed(1)}L${X(LM, p).toFixed(1)},${Y(p).toFixed(1)}`, 'parallel' + (major ? ' major' : ' minor'));
+    }
+    // 經線（每 5°，10° 加粗）
+    for (let l = -20; l <= 20; l += 5) {
+      let d = '';
+      for (let p = 0; p <= 90; p += 3) d += (p ? 'L' : 'M') + X(l, p).toFixed(1) + ',' + Y(p).toFixed(1);
+      line(d, 'meridian' + (l % 10 === 0 ? ' major' : ' minor'));
+    }
+    // 圖廓
+    let od = '';
+    for (let p = 0; p <= 90; p += 3) od += (p ? 'L' : 'M') + X(LM, p).toFixed(1) + ',' + Y(p).toFixed(1);
+    for (let p = 90; p >= 0; p -= 3) od += 'L' + X(-LM, p).toFixed(1) + ',' + Y(p).toFixed(1);
+    line(od + 'Z', 'outline');
+
+    // 緯度尺
+    el('line', { x1: 38, x2: 38, y1: Y(0), y2: Y(90), class: 'tick' });
+    for (let p = 0; p <= 90; p += 10) {
+      el('line', { x1: 31, x2: 38, y1: Y(p), y2: Y(p), class: 'tick' });
+      const t = el('text', { x: 26, y: Y(p) + 4, 'text-anchor': 'end' });
+      t.textContent = p + '°';
+    }
+
+    const band = el('path', { class: 'band' });
+    const mini = el('path', { class: 'minicell' });
+    const tw = el('path', { class: 'tw' });
+    const twT = el('text', { class: 'tw-t' });
+    twT.textContent = '臺灣';
+    const tagG = el('g', {});
+    const tagR = el('rect', { x: 0, width: 46, height: 20, rx: 3, class: 'lat-tag' }, tagG);
+    const tagT = el('text', { x: 23, 'text-anchor': 'middle', class: 'lat-tag-t' }, tagG);
+
+    /* 放大的 1°×1° 格子 */
+    const s = 2.0, gw = 111.32 * s, gh = 110.57 * s, gx = (270 - gw) / 2, gy = 66, gb = gy + gh + 2;
+    const t1 = el('text', { x: 24, y: 24, class: 'dim-s' }, cell); t1.textContent = '放大的 1° × 1° 格子';
+    const t2 = el('text', { x: 24, y: 44, class: 'dim-s' }, cell); t2.textContent = '虛線是赤道上的同樣一格';
+    el('rect', { x: gx, y: gb - gh, width: gw, height: gh, class: 'ghost' }, cell);
+    const act = el('rect', { class: 'cellrect' }, cell);
+    const dimB = el('path', { class: 'dim' }, cell);
+    const dimL = el('path', { class: 'dim' }, cell);
+    const lb1 = el('text', { x: 24, y: 352, class: 'dim-s' }, cell); lb1.textContent = '東西';
+    const n1 = el('text', { x: 24, y: 392, class: 'dim-t' }, cell);
+    const lb2 = el('text', { x: 24, y: 436, class: 'dim-s' }, cell); lb2.textContent = '南北';
+    const n2 = el('text', { x: 24, y: 476, class: 'dim-t' }, cell);
+    const rt = el('text', { x: 24, y: 516, class: 'dim-s' }, cell);
+
+    const setNum = (node, v) => {
+      node.textContent = '';
+      node.append(document.createTextNode(nf(v, 2) + ' '));
+      const u = document.createElementNS(NS, 'tspan');
+      u.setAttribute('class', 'dim-s'); u.setAttribute('font-size', '16'); u.textContent = 'km';
+      node.appendChild(u);
+    };
+
+    heroUpdate = function (latSigned) {
+      const a = Math.min(90, Math.abs(latSigned));
+      range.value = String(a);
+      outEl.textContent = a.toFixed(1) + '°' + (latSigned < 0 ? 'S' : 'N');
+
+      const lo = Math.max(0, a - 0.5), hi = Math.min(90, a + 0.5);
+      band.setAttribute('d', `M${X(-LM, lo)},${Y(lo)}L${X(LM, lo)},${Y(lo)}L${X(LM, hi)},${Y(hi)}L${X(-LM, hi)},${Y(hi)}Z`);
+      const h2 = Math.min(90, a + 1);
+      mini.setAttribute('d', `M${X(0, a)},${Y(a)}L${X(1, a)},${Y(a)}L${X(1, h2)},${Y(h2)}L${X(0, h2)},${Y(h2)}Z`);
+      const px = X(1.5, 25), py = Y(25);
+      tw.setAttribute('d', `M${px},${py - 6.5}L${px + 6},${py + 4.5}L${px - 6},${py + 4.5}Z`);
+      twT.setAttribute('x', px + 10); twT.setAttribute('y', py + 4);
+      tagR.setAttribute('y', Y(a) - 10);
+      tagT.setAttribute('y', Y(a) + 4);
+      tagT.textContent = a.toFixed(1) + '°N'.replace('N', latSigned < 0 ? 'S' : 'N');
+
+      const len = G.degreeLengths(a, 1);
+      const w = (len.lon / 1000) * s, h = (len.lat / 1000) * s;
+      const x0 = (270 - w) / 2, top = gb - h;
+      act.setAttribute('x', x0); act.setAttribute('y', top); act.setAttribute('width', w); act.setAttribute('height', h);
+      dimB.setAttribute('d', `M${x0},${gb + 12}H${x0 + w}M${x0},${gb + 7}V${gb + 17}M${x0 + w},${gb + 7}V${gb + 17}`);
+      dimL.setAttribute('d', `M12,${top}V${gb}M7,${top}H17M7,${gb}H17`);
+      setNum(n1, len.lon / 1000);
+      setNum(n2, len.lat / 1000);
+      rt.textContent = '東西是南北的 ' + nf((len.lon / len.lat) * 100, 1) + '%';
+    };
+
+    /* 滑鼠移過經緯網格就能掃描緯度；觸控與鍵盤用上方的滑桿 */
+    map.addEventListener('pointermove', (e) => {
+      if (e.pointerType !== 'mouse') return;
+      const r = map.getBoundingClientRect();
+      const vy = ((e.clientY - r.top) / r.height) * 580;
+      const lat = Math.max(0, Math.min(90, (y0 - vy) / k));
+      setLat(lat);
+    });
+    range.addEventListener('input', () => setLat(parseFloat(range.value)));
+  }
+
+  function setLat(v) {
+    v = Math.round(v * 10) / 10;
+    $('#d-lat').value = v;
+    $('#d-slider').value = v;
+    renderDegree();
+  }
+
+  /** 進頁面時，緯度線掃到目前緯度一次 */
+  function introSweep() {
+    if (!heroUpdate || (window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches)) return;
+    const target = parseFloat($('#d-lat').value) || 0;
+    const t0 = performance.now(), dur = 1400, delay = 500;
+    const step = (now) => {
+      const t = Math.max(0, Math.min(1, (now - t0 - delay) / dur));
+      const e = 1 - Math.pow(1 - t, 3);
+      heroUpdate(target * e);
+      if (t < 1) requestAnimationFrame(step); else heroUpdate(parseFloat($('#d-lat').value) || 0);
+    };
+    heroUpdate(0);
+    requestAnimationFrame(step);
+  }
+
   /* ============================== 事件綁定 ============================== */
 
   function init() {
@@ -563,7 +711,9 @@
     lat.addEventListener('input', () => { const v = parseFloat(lat.value); if (isFinite(v)) slider.value = v; renderDegree(); });
     slider.addEventListener('input', () => { lat.value = slider.value; renderDegree(); });
     ['#d-delta', '#r-meters'].forEach((s) => $(s).addEventListener('input', renderDegree));
+    initHero();
     renderDegree();
+    introSweep();
 
     // 2
     $('#b-points').addEventListener('input', () => { B.userMag = false; renderBinary(); });
